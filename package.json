@@ -1,0 +1,16 @@
+{
+  "name": "rovicare_notifcations",
+  "version": "1.0.0",
+  "description": "Notify email/SMS whenever a new referal is found in Rovicare",
+  "main": "src/app.js",
+  "scripts": {
+    "start": "node src/app.mjs"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "packageManager": "pnpm@8.15.4+sha1.c85a4305534f76d461407b59277b954bac97b5c4",
+  "dependencies": {
+    "dotenv": "^16.4.7"
+  }
+}
