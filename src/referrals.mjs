@@ -20,7 +20,6 @@ const REFERRALS_CACHE = () => path.join(CACHE_DIR, getTimestamp() + "_referrals.
  */
 
 /**
- * @param {string} accessToken
  * @returns {Promise<?ResponseBody>}
  */
 export async function getReferrals() {
