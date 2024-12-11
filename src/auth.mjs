@@ -2,10 +2,10 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import webdriver, { By, Key, until } from "selenium-webdriver";
 import { getDriver } from "./driver.mjs";
-import { APP_ENDPOINT, REFERRAL_INCOMING_ENDPOINT, SIGNIN_ENDPOINT } from "./consts.mjs";
+import { APP_ENDPOINT, CACHE_DIR, REFERRAL_INCOMING_ENDPOINT, SIGNIN_ENDPOINT } from "./consts.mjs";
 
 const TIMEOUT = 10000;
-const TOKENS_CACHE_FILE = path.join("cache", "tokens.cache");
+const TOKENS_CACHE_FILE = path.join(CACHE_DIR, "tokens.cache");
 
 const emailFieldId = "signInName";
 const passwordFieldId = "password";
