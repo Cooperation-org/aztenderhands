@@ -1,7 +1,26 @@
-import { REFERRALS_ENDPOINT } from "./consts.mjs";
+import fs from "node:fs/promises";
+import path from "node:path";
+import { CACHE_DIR, REFERRALS_ENDPOINT } from "./consts.mjs";
+import { getTimestamp } from "./utils/time.mjs";
+
+const REFERRALS_CACHE = () => path.join(CACHE_DIR, getTimestamp() + "_referrals.cache");
+
+/**
+ * @typedef {{
+ *   Data: Object[],
+ *   DataLength: number,
+ *   Status: number,
+ *   Message: string | null,
+ *   Warning: string | null,
+ *   Error: string | null,
+ *   TotalRecords: number,
+ *   FhirResponse: unknown | null,
+ * }} ResponseBody
+ */
 
 /**
  * @param {string} accessToken
+ * @returns {Promise<?ResponseBody>}
  */
 export async function getReferrals(accessToken) {
   const body = {
@@ -114,7 +133,26 @@ export async function getReferrals(accessToken) {
     // TODO: refresh the tokens and try again
     // const token = refreshTokens()
     // return getReferrals(token)
+    return null;
   }
 
-  return res.json();
+  /**
+   * @type {ResponseBody}
+   */
+  const jsonRes = await res.json();
+
+  if (jsonRes?.Data) {
+    jsonRes.DataLength = jsonRes.Data.length;
+  }
+
+  await cacheReferrals(jsonRes);
+
+  return jsonRes;
+}
+
+/**
+ * @param {ResponseBody} body
+ */
+async function cacheReferrals(body) {
+  await fs.writeFile(REFERRALS_CACHE(), JSON.stringify(body, null, 2), { encoding: "utf-8" });
 }
