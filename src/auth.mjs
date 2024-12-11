@@ -2,7 +2,13 @@ import fs from "node:fs/promises";
 import path from "node:path";
 import webdriver, { By, Key, until } from "selenium-webdriver";
 import { getDriver } from "./driver.mjs";
-import { APP_ENDPOINT, CACHE_DIR, REFERRAL_INCOMING_ENDPOINT, SIGNIN_ENDPOINT } from "./consts.mjs";
+import {
+  ACCESS_DURATION_IN_MS,
+  APP_ENDPOINT,
+  CACHE_DIR,
+  REFERRAL_INCOMING_ENDPOINT,
+  SIGNIN_ENDPOINT,
+} from "./consts.mjs";
 
 const TIMEOUT = 10000;
 const TOKENS_CACHE_FILE = path.join(CACHE_DIR, "tokens.cache");
@@ -18,9 +24,12 @@ const submitButtonId = "next";
 /**
  * @returns {Promise<Tokens>}
  */
-export async function signin() {
-  let tokens = await getTokensFromCache();
-  if (tokens) return tokens;
+export async function getTokens() {
+  const cacheIsValid = await validateAccessTokenExpiry();
+  if (cacheIsValid) {
+    const tokens = await getTokensFromCache();
+    if (tokens) return tokens;
+  }
 
   const driver = await getDriver();
 
@@ -36,16 +45,20 @@ export async function signin() {
 
   await driver.wait(until.urlMatches(new RegExp(REFERRAL_INCOMING_ENDPOINT)));
 
-  tokens = await getTokens(driver);
+  const tokens = await getTokensFromSessionStorage(driver);
   await cacheTokens(tokens);
   return tokens;
+}
+
+export async function invalidateCache() {
+  await fs.unlink(TOKENS_CACHE_FILE);
 }
 
 /**
  * @param {webdriver.ThenableWebDriver} driver
  * @returns {Promise<Tokens>}
  */
-function getTokens(driver) {
+function getTokensFromSessionStorage(driver) {
   return driver.executeScript(() => {
     const refreshToken = window.sessionStorage.getItem("refreshToken");
     const accessToken = window.sessionStorage.getItem("accessToken");
@@ -70,5 +83,18 @@ async function getTokensFromCache() {
     return JSON.parse(content);
   } catch (e) {
     return null;
+  }
+}
+
+/**
+ * @returns {Promise<boolean>}
+ */
+async function validateAccessTokenExpiry() {
+  try {
+    const s = await fs.stat(TOKENS_CACHE_FILE);
+    const age = new Date() - s.mtime;
+    return age < ACCESS_DURATION_IN_MS;
+  } catch (_) {
+    return false;
   }
 }
