@@ -1,11 +1,11 @@
 {
   "name": "rovicare_notifcations",
   "version": "1.0.0",
-  "description": "Notify email/SMS whenever a new referal is found in Rovicare",
+  "description": "Notify email/SMS whenever a new referral is found in Rovicare",
   "main": "src/app.js",
   "scripts": {
     "start": "node src/app.mjs",
-    "format": "prettier --write ./src/**",
+    "format": "prettier --write ./src/** ./*.md",
     "prepare": "husky"
   },
   "keywords": [],
