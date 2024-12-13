@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 
-import { config } from "../config/index.mjs";
+import { config } from "../config.mjs";
 
 /**
  * @type {nodemailer.Transporter<nodemailer.SMTPTransport.SentMessageInfo, nodemailer.SMTPTransport.Options> | undefined}
@@ -13,13 +13,11 @@ let transporter;
 async function getTransporter() {
   if (transporter) return transporter;
 
+  const { email: user, password: pass } = config.smtp.auth;
+
   transporter = nodemailer.createTransport({
     service: "gmail",
-
-    auth: {
-      user: config.smtp.auth.email,
-      pass: config.smtp.auth.password,
-    },
+    auth: { user, pass },
   });
 
   await transporter.verify();
