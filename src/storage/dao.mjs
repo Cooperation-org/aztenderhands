@@ -1,38 +1,82 @@
-import prisma, { PrismaClient } from "@prisma/client";
+import { Sequelize, DataTypes, Op } from "sequelize";
+import { config } from "../config.mjs";
+import { ServiceRequest } from "./models/service-request.mjs";
 
 /**
  * @typedef {import("../types/service-request").ServiceRequest} ServiceRequest
+ * @typedef {import("../types/service-request").ServiceRequestDto} ServiceRequestDto
  */
 
 export class ServiceRequestDao {
-  #dbClient = new PrismaClient();
+  #sequelize = new Sequelize(config.dbURI);
+
+  #ServiceRequest = ServiceRequest.init(
+    {
+      id: { type: DataTypes.UUID, primaryKey: true, allowNull: false },
+      status: { type: DataTypes.STRING, allowNull: false },
+      patientId: { type: DataTypes.UUID, allowNull: false },
+      patientName: { type: DataTypes.STRING, allowNull: false },
+      providerType: { type: DataTypes.STRING, allowNull: false },
+      referralType: { type: DataTypes.STRING, allowNull: false },
+
+      // Business units involved
+      referredByUnit: { type: DataTypes.STRING, allowNull: false },
+      referredToUnit: { type: DataTypes.STRING, allowNull: true },
+
+      // Time tracking
+      createdOn: { type: DataTypes.TIME, allowNull: true },
+      referralSentAt: { type: DataTypes.TIME, allowNull: true },
+      responseReceivedAt: { type: DataTypes.TIME, allowNull: true },
+
+      // Contact information
+      requestedByName: { type: DataTypes.STRING, allowNull: true },
+      requestedByEmail: { type: DataTypes.STRING, allowNull: true },
+      requestedByPhone: { type: DataTypes.STRING, allowNull: true },
+
+      // Notification tracking
+      notifiedAt: { type: DataTypes.TIME, allowNull: true },
+    },
+    { sequelize: this.#sequelize },
+  );
 
   /**
-   * @param {ServiceRequest} sr
-   * @returns {Promise<prisma.ServiceRequest>}
+   * @returns {Promise<typeof this.#sequelize>}
    */
-  async createServiceRequest(sr) {
-    const dto = this.#requestResponseToDBDto(sr);
-    const referral = await this.#dbClient.serviceRequest.create({ data: dto });
-    return referral;
+  init() {
+    return this.#sequelize.sync();
   }
 
   /**
-   * @param {ServiceRequest[]} srs
+   * @param {ServiceRequestDto} sr
+   * @returns {Promise<prisma.ServiceRequest>}
+   */
+  createServiceRequest(sr) {
+    const dto = this.#requestResponseToDBDto(sr);
+    return this.#ServiceRequest.create(dto);
+  }
+
+  /**
+   * @param {ServiceRequestDto[]} srs
    * @returns {Promise<prisma.ServiceRequest[]>}
    */
-  async createServiceRequests(srs) {
+  createServiceRequests(srs) {
     const dto = srs.map((sr) => this.#requestResponseToDBDto(sr));
-    const referral = await this.#dbClient.serviceRequest.createMany({ data: dto });
-    return referral;
+    return this.#ServiceRequest.bulkCreate(dto);
+  }
+
+  /**
+   * @returns {Promise<prisma.ServiceRequest[]>}
+   */
+  getServiceRequests() {
+    return this.#ServiceRequest.findAll();
   }
 
   /**
    * @param {string} id
    * @returns {Promise<void>}
    */
-  async markAsNotified(id) {
-    await this.#dbClient.serviceRequest.update({
+  markServiceRequestAsNotified(id) {
+    return this.#ServiceRequest.update({
       where: { id },
       data: { notifiedAt: new Date() },
     });
@@ -42,24 +86,23 @@ export class ServiceRequestDao {
    * @returns {Promise<?prisma.ServiceRequest>}
    */
   async getLastNotified() {
-    const res = await this.#dbClient.serviceRequest.findMany({
-      orderBy: { notifiedAt: prisma.Prisma.SortOrder.desc },
-      take: 1,
-      where: { notifiedAt: { not: null } },
+    const res = await this.#ServiceRequest.findOne({
+      order: [["notifiedAt", "DESC"]],
+      where: { notifiedAt: { [Op.not]: null } },
     });
-    return res?.length ? res[0] : null;
+    return res || null;
   }
 
   /**
    * @returns {Promise<void>}
    */
   async disconnect() {
-    await this.#dbClient.$disconnect();
-    this.#dbClient = undefined;
+    await this.#sequelize.close();
+    this.#sequelize = undefined;
   }
 
   /**
-   * @param {ServiceRequest} sr - The service request from the API response
+   * @param {ServiceRequestDto} sr - The service request from the API response
    * @returns {prisma.Prisma.ServiceRequestCreateArgs["data"]}
    */
   #requestResponseToDBDto(sr) {

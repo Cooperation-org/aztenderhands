@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 const ConfigZ = z.object({
+  dbURI: z.string(),
   smtp: z.object({
     auth: z.object({
       email: z.string().email(),
@@ -11,6 +12,7 @@ const ConfigZ = z.object({
 });
 
 const config = ConfigZ.parse({
+  dbURI: process.env.DATABASE_URL,
   broadcastEmails: (process.env.EMAILS_TO_NOTIFY || "").split(","),
   smtp: {
     auth: {

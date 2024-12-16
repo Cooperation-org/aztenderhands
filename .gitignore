@@ -3,5 +3,4 @@
 node_modules
 cache/*
 !cache/.gitkeep
-prisma/data.db*
-
+data.db

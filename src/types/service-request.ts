@@ -1,4 +1,30 @@
 export type ServiceRequest = {
+  id: string;
+  status: string;
+  patientId: string;
+  patientName: string;
+  providerType: string;
+  referralType: string;
+
+  // Business units involved
+  referredByUnit: string;
+  referredToUnit: string;
+
+  // Time tracking
+  createdOn: Date;
+  referralSentAt: Date;
+  responseReceivedAt: Date;
+
+  // Contact information
+  requestedByName: Date;
+  requestedByEmail: Date;
+  requestedByPhone: Date;
+
+  // Notification tracking
+  notifiedAt: Date;
+};
+
+export type ServiceRequestDto = {
   ServiceRequestId: string;
   PatientId: string;
   ReferredByBusinessunitId: string;

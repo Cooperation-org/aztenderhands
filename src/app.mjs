@@ -8,10 +8,11 @@ async function init() {
   const serviceRequestDao = new ServiceRequestDao();
   const emailBroadcaster = new EmailBroadcaster();
 
+  await serviceRequestDao.init();
+
   try {
     const referrals = await getReferrals();
     await serviceRequestDao.createServiceRequests(referrals);
-
     // await emailBroadcaster.broadcast();
   } finally {
     await quitDriver();
