@@ -1,15 +1,22 @@
 import "dotenv/config";
 import { getReferrals } from "./referrals.mjs";
 import { quitDriver } from "./driver.mjs";
-import { broadcast, quitTransporter } from "./broadcast/email.mjs";
+import { EmailBroadcaster } from "./broadcast/email.mjs";
+import { ServiceRequestDao } from "./storage/dao.mjs";
 
 async function init() {
+  const serviceRequestDao = new ServiceRequestDao();
+  const emailBroadcaster = new EmailBroadcaster();
+
   try {
-    await getReferrals();
-    await broadcast();
+    const referrals = await getReferrals();
+    await serviceRequestDao.createServiceRequests(referrals);
+
+    // await emailBroadcaster.broadcast();
   } finally {
     await quitDriver();
-    quitTransporter();
+    await serviceRequestDao.disconnect();
+    emailBroadcaster.quit();
   }
 }
 

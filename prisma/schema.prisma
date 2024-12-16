@@ -1,0 +1,34 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+model ServiceRequest {
+  id           String @id @default(uuid())
+  status       String // Tracks current status of the referral
+  patientId    String // Patient id
+  patientName  String // Combined patient name
+  providerType String // Type of service provider needed
+  referralType String // Type of referral (e.g., Provider, Inpatient, Outpatient)
+
+  // Business units involved
+  referredByUnit String // Name of referring business unit
+  referredToUnit String? // Name of receiving business unit
+
+  // Time tracking
+  createdOn          DateTime?
+  referralSentAt     DateTime?
+  responseReceivedAt DateTime?
+
+  // Contact information
+  requestedByName  String? // Name of person who created the referral
+  requestedByEmail String? // Email of person who created the referral
+  requestedByPhone String? // Phone of person who created the referral
+
+  // Notification tracking
+  notifiedAt DateTime?
+}

@@ -4,21 +4,27 @@
   "description": "Notify email/SMS whenever a new referral is found in Rovicare",
   "main": "src/app.js",
   "scripts": {
+    "prepare": "husky",
     "start": "node src/app.mjs",
     "format": "prettier --write ./src/** ./*.md",
-    "prepare": "husky"
+    "prisma:init": "prisma init",
+    "prisma:migrate": "prisma migrate dev",
+    "prisma:gen": "prisma generate"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "packageManager": "pnpm@8.15.4+sha1.c85a4305534f76d461407b59277b954bac97b5c4",
   "dependencies": {
+    "@prisma/client": "^6.0.1",
     "dotenv": "^16.4.7",
     "nodemailer": "^6.9.16",
+    "prisma": "^6.0.1",
     "selenium-webdriver": "^4.27.0",
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/nodemailer": "^6.4.17",
     "@types/selenium-webdriver": "^4.1.27",
     "husky": "^9.1.7",
     "prettier": "^3.4.2"
