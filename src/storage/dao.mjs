@@ -3,12 +3,12 @@ import { config } from "../config.mjs";
 import { ServiceRequest } from "./models/service-request.mjs";
 
 /**
- * @typedef {import("../types/service-request").ServiceRequest} ServiceRequest
+ * @typedef {import("../types/service-request").ServiceRequest} IServiceRequest
  * @typedef {import("../types/service-request").ServiceRequestDto} ServiceRequestDto
  */
 
 export class ServiceRequestDao {
-  #sequelize = new Sequelize(config.dbURI);
+  #sequelize = new Sequelize(config.dbURI, { logging: false });
 
   #ServiceRequest = ServiceRequest.init(
     {
@@ -47,25 +47,23 @@ export class ServiceRequestDao {
   }
 
   /**
-   * @param {ServiceRequestDto} sr
-   * @returns {Promise<prisma.ServiceRequest>}
-   */
-  createServiceRequest(sr) {
-    const dto = this.#requestResponseToDBDto(sr);
-    return this.#ServiceRequest.create(dto);
-  }
-
-  /**
    * @param {ServiceRequestDto[]} srs
-   * @returns {Promise<prisma.ServiceRequest[]>}
+   * @returns {Promise<IServiceRequest[]>}
    */
-  createServiceRequests(srs) {
+  async createServiceRequests(srs) {
     const dto = srs.map((sr) => this.#requestResponseToDBDto(sr));
-    return this.#ServiceRequest.bulkCreate(dto);
+    const serviceRequests = await this.getServiceRequests();
+    const existingIds = serviceRequests.map((x) => x.id);
+
+    const srsToCreate = dto.filter((x) => !existingIds.includes(x.id));
+
+    if (!srsToCreate.length) return [];
+
+    return this.#ServiceRequest.bulkCreate(srsToCreate);
   }
 
   /**
-   * @returns {Promise<prisma.ServiceRequest[]>}
+   * @returns {Promise<IServiceRequest[]>}
    */
   getServiceRequests() {
     return this.#ServiceRequest.findAll();
@@ -83,7 +81,7 @@ export class ServiceRequestDao {
   }
 
   /**
-   * @returns {Promise<?prisma.ServiceRequest>}
+   * @returns {Promise<?IServiceRequest>}
    */
   async getLastNotified() {
     const res = await this.#ServiceRequest.findOne({
@@ -103,7 +101,7 @@ export class ServiceRequestDao {
 
   /**
    * @param {ServiceRequestDto} sr - The service request from the API response
-   * @returns {prisma.Prisma.ServiceRequestCreateArgs["data"]}
+   * @returns {IServiceRequest}
    */
   #requestResponseToDBDto(sr) {
     return {
