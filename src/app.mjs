@@ -1,24 +1,45 @@
 import "dotenv/config";
-import { getReferrals } from "./referrals.mjs";
-import { quitDriver } from "./driver.mjs";
 import { EmailBroadcaster } from "./broadcast/email.mjs";
-import { ServiceRequestDao } from "./storage/dao.mjs";
+import { RovicareScraper } from "./rovicare-scraper.mjs";
+import { sleep } from "./utils/promise.mjs";
 
-async function init() {
-  const serviceRequestDao = new ServiceRequestDao();
-  const emailBroadcaster = new EmailBroadcaster();
+export class App {
+  #INTERVAL_DURATION = 60 * 1000;
 
-  await serviceRequestDao.init();
+  #interval;
 
-  try {
-    const referrals = await getReferrals();
-    await serviceRequestDao.createServiceRequests(referrals);
-    // await emailBroadcaster.broadcast();
-  } finally {
-    await quitDriver();
-    await serviceRequestDao.disconnect();
-    emailBroadcaster.quit();
+  #scraper;
+  #emailBroadcaster;
+
+  /**
+   * @param {RovicareScraper} scraper
+   * @param {EmailBroadcaster} emailBroadcaster
+   */
+  constructor(scraper, emailBroadcaster) {
+    this.#scraper = scraper;
+    this.#emailBroadcaster = emailBroadcaster;
+  }
+
+  async init() {
+    await this.#scraper.init();
+  }
+
+  async start() {
+    this.#intervalCB();
+
+    await sleep(this.#INTERVAL_DURATION);
+    await this.start();
+  }
+
+  async #intervalCB() {
+    console.log("Getting the service requests...");
+    const serviceRequests = await this.#scraper.fetchServiceRequests();
+    console.log(serviceRequests);
+  }
+
+  async exit() {
+    await this.#scraper.exit();
+    this.#emailBroadcaster.exit();
+    clearInterval(this.#interval);
   }
 }
-
-init();

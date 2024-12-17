@@ -1,6 +1,6 @@
 import { Sequelize, DataTypes, Op } from "sequelize";
 import { config } from "../config.mjs";
-import { ServiceRequest } from "./models/service-request.mjs";
+import { Metadata, ServiceRequest } from "./models/service-request.mjs";
 
 /**
  * @typedef {import("../types/service-request").ServiceRequest} IServiceRequest
@@ -39,6 +39,15 @@ export class ServiceRequestDao {
     { sequelize: this.#sequelize },
   );
 
+  #Metadata = Metadata.init(
+    {
+      accessToken: { type: DataTypes.STRING },
+      refreshToken: { type: DataTypes.STRING },
+      totalServiceRequests: { type: DataTypes.NUMBER },
+    },
+    { sequelize: this.#sequelize },
+  );
+
   /**
    * @returns {Promise<typeof this.#sequelize>}
    */
@@ -51,11 +60,11 @@ export class ServiceRequestDao {
    * @returns {Promise<IServiceRequest[]>}
    */
   async createServiceRequests(srs) {
-    const dto = srs.map((sr) => this.#requestResponseToDBDto(sr));
+    const dto = srs.map(sr => this.#requestResponseToDBDto(sr));
     const serviceRequests = await this.getServiceRequests();
-    const existingIds = serviceRequests.map((x) => x.id);
+    const existingIds = serviceRequests.map(x => x.id);
 
-    const srsToCreate = dto.filter((x) => !existingIds.includes(x.id));
+    const srsToCreate = dto.filter(x => !existingIds.includes(x.id));
 
     if (!srsToCreate.length) return [];
 
@@ -74,21 +83,41 @@ export class ServiceRequestDao {
    * @returns {Promise<void>}
    */
   markServiceRequestAsNotified(id) {
-    return this.#ServiceRequest.update({
-      where: { id },
-      data: { notifiedAt: new Date() },
-    });
+    return this.#ServiceRequest.update(
+      {
+        notifiedAt: new Date(),
+      },
+      { where: { id } },
+    );
   }
 
   /**
    * @returns {Promise<?IServiceRequest>}
    */
-  async getLastNotified() {
+  async getLastNotifiedServiceRequest() {
     const res = await this.#ServiceRequest.findOne({
-      order: [["notifiedAt", "DESC"]],
+      order: [
+        ["notifiedAt", "DESC"],
+        ["createdOn", "DESC"],
+      ],
       where: { notifiedAt: { [Op.not]: null } },
     });
-    return res || null;
+    return res?.dataValues || null;
+  }
+
+  /**
+   * @param {Date} date
+   * @returns {Promise<?IServiceRequest>}
+   */
+  async getNotNotifiedServiceRequestsAfter(date) {
+    const res = await this.#ServiceRequest.findOne({
+      order: [["createdOn", "DESC"]],
+      where: {
+        createdOn: { [Op.gt]: date },
+        notifiedAt: { [Op.is]: null },
+      },
+    });
+    return res?.dataValues || null;
   }
 
   /**

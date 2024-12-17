@@ -30,13 +30,13 @@ export class EmailBroadcaster {
       info.push(_info);
     }
 
-    return info.map((x) => x.messageId);
+    return info.map(x => x.messageId);
   }
 
   /**
    * @returns {void}
    */
-  quit() {
+  exit() {
     this.#transporter.close();
     this.#transporter = undefined;
   }
