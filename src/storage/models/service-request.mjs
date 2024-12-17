@@ -8,3 +8,5 @@ export class ServiceRequest extends Model {
     return !!this.notifiedAt;
   }
 }
+
+export class Metadata extends Model {}
