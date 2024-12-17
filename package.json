@@ -4,9 +4,9 @@
   "description": "Notify email/SMS whenever a new referral is found in Rovicare",
   "main": "src/app.js",
   "scripts": {
+    "prepare": "husky",
     "start": "node src/app.mjs",
-    "format": "prettier --write ./src/** ./*.md",
-    "prepare": "husky"
+    "format": "prettier --write ./src/** ./*.md"
   },
   "keywords": [],
   "author": "",
@@ -16,9 +16,12 @@
     "dotenv": "^16.4.7",
     "nodemailer": "^6.9.16",
     "selenium-webdriver": "^4.27.0",
+    "sequelize": "^6.37.5",
+    "sqlite3": "^5.1.7",
     "zod": "^3.24.1"
   },
   "devDependencies": {
+    "@types/nodemailer": "^6.4.17",
     "@types/selenium-webdriver": "^4.1.27",
     "husky": "^9.1.7",
     "prettier": "^3.4.2"

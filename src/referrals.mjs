@@ -50,7 +50,7 @@ export async function getReferrals() {
 
   await cacheReferrals(jsonRes);
 
-  return jsonRes;
+  return jsonRes.Data;
 }
 
 /**
