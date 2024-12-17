@@ -33,8 +33,8 @@ export class App {
 
   async #intervalCB() {
     console.log("Getting the service requests...");
-    const serviceRequests = await this.#scraper.fetchServiceRequests();
-    console.log(serviceRequests);
+    // const serviceRequests = await this.#scraper.fetchServiceRequests();
+    // console.log(serviceRequests);
   }
 
   async exit() {

@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
-import { By, Key, until, default as webdriver } from "selenium-webdriver";
+import { Builder, Browser, By, Key, until, default as webdriver } from "selenium-webdriver";
+import firefox from "selenium-webdriver/firefox.js";
 import {
   ACCESS_DURATION_IN_MS,
   APP_ENDPOINT,
@@ -10,7 +11,6 @@ import {
   REFERRALS_REQUEST_BODY,
   SIGNIN_ENDPOINT,
 } from "./consts.mjs";
-import { WebDriver } from "./web-driver.mjs";
 import { getTimestamp } from "./utils/time.mjs";
 
 /**
@@ -29,6 +29,7 @@ import { getTimestamp } from "./utils/time.mjs";
  */
 
 export class RovicareScraper {
+  #BROWSER = Browser.FIREFOX;
   #TIMEOUT = 10000;
   #TOKENS_CACHE_FILE = path.join(CACHE_DIR, "tokens.cache");
 
@@ -36,17 +37,16 @@ export class RovicareScraper {
   #passwordFieldId = "password";
   #submitButtonId = "next";
 
+  /**
+   * @type {Promise<webdriver.ThenableWebDriver> | undefined}
+   */
   #driver;
 
-  /**
-   * @param {WebDriver} driver
-   */
-  constructor(driver) {
-    this.#driver = driver;
-  }
-
   async init() {
-    await this.#driver.init();
+    if (this.#driver) return;
+    const opts = new firefox.Options();
+    opts.addArguments("-headless");
+    this.#driver = await new Builder().forBrowser(this.#BROWSER).setFirefoxOptions(opts).build();
   }
 
   /**
@@ -93,7 +93,7 @@ export class RovicareScraper {
       if (tokens) return tokens;
     }
 
-    const d = this.#driver.getDriver();
+    const d = this.#driver;
     await d.get(APP_ENDPOINT);
     await d.wait(until.urlMatches(new RegExp(SIGNIN_ENDPOINT)), this.#TIMEOUT);
 
@@ -120,8 +120,7 @@ export class RovicareScraper {
    * @returns {Promise<Tokens>}
    */
   async #getTokensFromSessionStorage() {
-    const d = this.#driver.getDriver();
-    return d.executeScript(() => {
+    return this.#driver.executeScript(() => {
       const refreshToken = window.sessionStorage.getItem("refreshToken");
       const accessToken = window.sessionStorage.getItem("accessToken");
       return { refreshToken, accessToken };
@@ -173,6 +172,8 @@ export class RovicareScraper {
   }
 
   async exit() {
-    await this.#driver.exit();
+    if (!this.#driver) return;
+    await this.#driver.quit();
+    this.#driver = undefined;
   }
 }
