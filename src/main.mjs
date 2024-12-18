@@ -1,13 +1,16 @@
 import { App } from "./app.mjs";
 import { EmailBroadcaster } from "./broadcast/email.mjs";
+import { Logger } from "./logger.mjs";
 import { RovicareScraper } from "./rovicare-scraper.mjs";
-import { WebDriver } from "./web-driver.mjs";
+import { Dao } from "./storage/dao.mjs";
 
 async function init() {
-  const driver = new WebDriver();
-  const scraper = new RovicareScraper(driver);
-  const emailBroadcaster = new EmailBroadcaster();
-  const app = new App(scraper, emailBroadcaster);
+  const logger = new Logger();
+  const dao = new Dao();
+  const scraper = new RovicareScraper(dao, logger);
+  const emailBroadcaster = new EmailBroadcaster(logger);
+
+  const app = new App(scraper, emailBroadcaster, dao, logger);
   await app.init();
 
   try {

@@ -5,8 +5,6 @@ export const SIGNIN_ENDPOINT =
   "https://approvicare.b2clogin.com/appRovicare.onmicrosoft.com/B2C_1A_SIGNUP_SIGNIN/oauth2/v2.0/authorize";
 export const REFERRAL_INCOMING_ENDPOINT = "https://app.rovicare.com/#/Referral/Incoming";
 
-export const CACHE_DIR = "cache";
-
 export const ACCESS_DURATION_IN_MS = 1 * 60 * 60 * 1000;
 
 export const REFERRALS_REQUEST_BODY = {

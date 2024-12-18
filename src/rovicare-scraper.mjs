@@ -1,71 +1,77 @@
-import fs from "node:fs/promises";
-import path from "node:path";
-import { By, Key, until, default as webdriver } from "selenium-webdriver";
+import { Builder, Browser, By, Key, until, default as webdriver } from "selenium-webdriver";
+import firefox from "selenium-webdriver/firefox.js";
 import {
-  ACCESS_DURATION_IN_MS,
   APP_ENDPOINT,
-  CACHE_DIR,
   REFERRAL_INCOMING_ENDPOINT,
   REFERRALS_ENDPOINT,
   REFERRALS_REQUEST_BODY,
   SIGNIN_ENDPOINT,
 } from "./consts.mjs";
-import { WebDriver } from "./web-driver.mjs";
-import { getTimestamp } from "./utils/time.mjs";
+import { Dao } from "./storage/dao.mjs";
+import winston from "winston";
+import { fetchWithRetry } from "./utils/fetch.mjs";
 
 /**
- * @typedef {{refreshToken: string, accessToken: string}} Tokens
- *
- * @typedef {{
- *   Data: import("./types/service-request").ServiceRequestDto[],
- *   DataLength: number,
- *   Status: number,
- *   Message: string | null,
- *   Warning: string | null,
- *   Error: string | null,
- *   TotalRecords: number,
- *   FhirResponse: unknown | null,
- * }} ServiceRequestResponseBody
+ * @typedef {import("./types/tokens").Tokens} Tokens
+ * @typedef {import("./types/service-request").ServiceRequestResponseBody} ServiceRequestResponseBody
  */
 
 export class RovicareScraper {
+  #BROWSER = Browser.FIREFOX;
   #TIMEOUT = 10000;
-  #TOKENS_CACHE_FILE = path.join(CACHE_DIR, "tokens.cache");
 
-  #emailFieldId = "signInName";
-  #passwordFieldId = "password";
-  #submitButtonId = "next";
+  #identifiers = {
+    emailFieldId: "signInName",
+    passwordFieldId: "password",
+    submitButtonId: "next",
+  };
 
+  #dao;
+  #logger;
+
+  /**
+   * @param {Dao} dao
+   * @param {winston} logger
+   */
+  constructor(dao, logger) {
+    this.#dao = dao;
+    this.#logger = logger;
+  }
+
+  /**
+   * @type {webdriver.ThenableWebDriver | undefined}
+   */
   #driver;
 
-  /**
-   * @param {WebDriver} driver
-   */
-  constructor(driver) {
-    this.#driver = driver;
-  }
-
   async init() {
-    await this.#driver.init();
+    await this.#dao.init();
+  }
+
+  async #initDriver() {
+    this.#logger.debug("Initlizing the driver");
+    if (this.#driver) return;
+    const opts = new firefox.Options();
+    opts.addArguments("-headless");
+    this.#driver = await new Builder().forBrowser(this.#BROWSER).setFirefoxOptions(opts).build();
   }
 
   /**
-   * @returns {Promise<ServiceRequestResponseBody>}
+   * @returns {Promise<import("./types/service-request").ServiceRequest[]>}
    */
   async fetchServiceRequests() {
-    const { accessToken } = await this.#getTokens();
-    const res = await fetch(REFERRALS_ENDPOINT, {
+    const { access } = await this.#getTokens();
+    const res = await fetchWithRetry(REFERRALS_ENDPOINT, {
       method: "POST",
       headers: {
         accept: "application/json",
-        authorization: `Bearer ${accessToken}`,
+        authorization: `Bearer ${access}`,
         "content-type": "application/json",
       },
       body: JSON.stringify(REFERRALS_REQUEST_BODY),
     });
 
     if (res.status === 401) {
-      await this.#invalidateCache();
+      await this.#dao.invalidateToken(access);
       return this.fetchServiceRequests();
     }
 
@@ -78,101 +84,66 @@ export class RovicareScraper {
       jsonRes.DataLength = jsonRes.Data.length;
     }
 
-    await this.#cacheServiceRequests(jsonRes);
+    await this.#dao.updateServiceRequestsCount(jsonRes.TotalRecords);
+    const newServiceRequests = await this.#dao.createNonExistingServiceRequests(jsonRes.Data);
 
-    return jsonRes.Data;
+    return newServiceRequests;
   }
 
   /**
    * @returns {Promise<Tokens>}
    */
   async #getTokens() {
-    const cacheIsValid = await this.#validateAccessTokenExpiry();
-    if (cacheIsValid) {
-      const tokens = await this.#getTokensFromCache();
-      if (tokens) return tokens;
+    const eTokens = await this.#dao.getAvailableTokens();
+    if (eTokens) {
+      this.#logger.debug(`Using already existing token with id: ${eTokens.id}`);
+      return eTokens;
     }
 
-    const d = this.#driver.getDriver();
-    await d.get(APP_ENDPOINT);
-    await d.wait(until.urlMatches(new RegExp(SIGNIN_ENDPOINT)), this.#TIMEOUT);
-
-    await d.wait(until.elementLocated(By.id(this.#emailFieldId)), this.#TIMEOUT);
-
-    await d.findElement(By.id(this.#emailFieldId)).sendKeys(process.env.SIGNIN_EMAIL);
-    await d.findElement(By.id(this.#passwordFieldId)).sendKeys(process.env.SIGNIN_PASSWORD);
-
-    await d.findElement(By.id(this.#submitButtonId)).sendKeys(Key.RETURN);
-
-    await d.wait(until.urlMatches(new RegExp(REFERRAL_INCOMING_ENDPOINT)));
-
-    const tokens = await this.#getTokensFromSessionStorage(d);
-    await this.#cacheTokens(tokens);
-    return tokens;
-  }
-
-  async #invalidateCache() {
-    await fs.unlink(this.#TOKENS_CACHE_FILE);
-  }
-
-  /**
-   * @param {webdriver.ThenableWebDriver} driver
-   * @returns {Promise<Tokens>}
-   */
-  async #getTokensFromSessionStorage() {
-    const d = this.#driver.getDriver();
-    return d.executeScript(() => {
-      const refreshToken = window.sessionStorage.getItem("refreshToken");
-      const accessToken = window.sessionStorage.getItem("accessToken");
-      return { refreshToken, accessToken };
-    });
-  }
-
-  /**
-   * @param {Promise<Tokens>} tokens
-   */
-  async #cacheTokens(tokens) {
-    await fs.writeFile(this.#TOKENS_CACHE_FILE, JSON.stringify(tokens), { encoding: "utf-8" });
-  }
-
-  /**
-   * @param {Promise<Tokens>} tokens
-   * @returns {?Promise<Tokens>}
-   */
-  async #getTokensFromCache() {
     try {
-      const content = await fs.readFile(this.#TOKENS_CACHE_FILE, { encoding: "utf-8" });
-      return JSON.parse(content);
-    } catch (e) {
-      return null;
+      this.#logger.info("Fetching new tokens...");
+      await this.#initDriver();
+
+      const d = this.#driver;
+      await d.get(APP_ENDPOINT);
+      await d.wait(until.urlMatches(new RegExp(SIGNIN_ENDPOINT)), this.#TIMEOUT);
+
+      await d.wait(until.elementLocated(By.id(this.#identifiers.emailFieldId)), this.#TIMEOUT);
+
+      await d.findElement(By.id(this.#identifiers.emailFieldId)).sendKeys(process.env.SIGNIN_EMAIL);
+      await d.findElement(By.id(this.#identifiers.passwordFieldId)).sendKeys(process.env.SIGNIN_PASSWORD);
+
+      await d.findElement(By.id(this.#identifiers.submitButtonId)).sendKeys(Key.RETURN);
+
+      await d.wait(until.urlMatches(new RegExp(REFERRAL_INCOMING_ENDPOINT)));
+
+      const tokens = await this.#driver.executeScript(() => {
+        const refresh = window.sessionStorage.getItem("refreshToken");
+        const access = window.sessionStorage.getItem("accessToken");
+        const now = new Date();
+        return { access, refresh, accessExpiresAt: now.setHours(now.getHours() + 1) };
+      });
+      const newTokens = await this.#dao.createToken(tokens);
+      this.#logger.debug(`Stored new token`);
+      return newTokens;
+    } finally {
+      await this.#exitDriver();
     }
   }
 
-  /**
-   * @returns {Promise<boolean>}
-   */
-  async #validateAccessTokenExpiry() {
-    try {
-      const s = await fs.stat(this.#TOKENS_CACHE_FILE);
-      const age = new Date() - s.mtime;
-      return age < ACCESS_DURATION_IN_MS;
-    } catch (_) {
-      return false;
-    }
-  }
-
-  /**
-   * @param {ServiceRequestResponseBody} body
-   */
-  async #cacheServiceRequests(body) {
-    await fs.writeFile(this.#getReferralsCache(), JSON.stringify(body, null, 2), { encoding: "utf-8" });
-  }
-
-  #getReferralsCache() {
-    return path.join(CACHE_DIR, getTimestamp() + "_referrals.cache");
+  async #exitDriver() {
+    this.#logger.debug("Exiting driver");
+    if (!this.#driver) return;
+    await this.#driver.quit();
+    this.#driver = undefined;
   }
 
   async exit() {
-    await this.#driver.exit();
+    if (this.#dao) {
+      await this.#dao.disconnect();
+      this.#dao = undefined;
+    }
+
+    await this.#exitDriver();
   }
 }
