@@ -2,6 +2,7 @@ import "dotenv/config";
 import { EmailBroadcaster } from "./broadcast/email.mjs";
 import { RovicareScraper } from "./rovicare-scraper.mjs";
 import { sleep } from "./utils/promise.mjs";
+import winston from "winston";
 
 export class App {
   #INTERVAL_DURATION = 60 * 1000;
@@ -10,14 +11,17 @@ export class App {
 
   #scraper;
   #emailBroadcaster;
+  #logger;
 
   /**
    * @param {RovicareScraper} scraper
    * @param {EmailBroadcaster} emailBroadcaster
+   * @param {winston} logger
    */
-  constructor(scraper, emailBroadcaster) {
+  constructor(scraper, emailBroadcaster, logger) {
     this.#scraper = scraper;
     this.#emailBroadcaster = emailBroadcaster;
+    this.#logger = logger;
   }
 
   async init() {
@@ -32,9 +36,9 @@ export class App {
   }
 
   async #intervalCB() {
-    console.log("Getting the service requests...");
-    // const serviceRequests = await this.#scraper.fetchServiceRequests();
-    // console.log(serviceRequests);
+    this.#logger.info("Getting the service requests...");
+    const serviceRequests = await this.#scraper.fetchServiceRequests();
+    this.#logger.info(`Fetched service requests. ${serviceRequests.length} new service requests.`);
   }
 
   async exit() {
