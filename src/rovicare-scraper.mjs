@@ -9,6 +9,7 @@ import {
 } from "./consts.mjs";
 import { Dao } from "./storage/dao.mjs";
 import winston from "winston";
+import { fetchWithRetry } from "./utils/fetch.mjs";
 
 /**
  * @typedef {import("./types/tokens").Tokens} Tokens
@@ -59,7 +60,7 @@ export class RovicareScraper {
    */
   async fetchServiceRequests() {
     const { access } = await this.#getTokens();
-    const res = await fetch(REFERRALS_ENDPOINT, {
+    const res = await fetchWithRetry(REFERRALS_ENDPOINT, {
       method: "POST",
       headers: {
         accept: "application/json",
