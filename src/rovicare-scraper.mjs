@@ -134,7 +134,11 @@ export class RovicareScraper {
   async #exitDriver() {
     this.#logger.debug("Exiting driver");
     if (!this.#driver) return;
-    await this.#driver.quit();
+    try {
+      await this.#driver.quit();
+    } catch (e) {
+      this.#logger.error(`Error while exiting the driver: ${e}`);
+    }
     this.#driver = undefined;
   }
 

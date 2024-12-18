@@ -21,11 +21,6 @@ export class EmailBroadcaster {
     this.#logger = logger;
   }
 
-  /**
-   * @param {string} subject
-   * @param {string} text
-   * @param {string} html
-   */
   async broadcast() {
     const info = [];
 

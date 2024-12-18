@@ -4,26 +4,25 @@ import { RovicareScraper } from "./rovicare-scraper.mjs";
 import { sleep } from "./utils/promise.mjs";
 import winston from "winston";
 import { Dao } from "./storage/dao.mjs";
+import { SMSBroadcaster } from "./broadcast/sms.mjs";
 
 export class App {
   #INTERVAL_DURATION = 60 * 1000;
 
-  #interval;
-
   #scraper;
-  #emailBroadcaster;
+  #broadcasters;
   #logger;
   #dao;
 
   /**
    * @param {RovicareScraper} scraper
-   * @param {EmailBroadcaster} emailBroadcaster
+   * @param {(EmailBroadcaster | SMSBroadcaster)[]} broadcasters
    * @param {Dao} dao
    * @param {winston} logger
    */
-  constructor(scraper, emailBroadcaster, dao, logger) {
+  constructor(scraper, broadcasters, dao, logger) {
     this.#scraper = scraper;
-    this.#emailBroadcaster = emailBroadcaster;
+    this.#broadcasters = broadcasters;
     this.#logger = logger;
     this.#dao = dao;
   }
@@ -52,7 +51,9 @@ export class App {
 
     this.#logger.debug(`The new service requests: ${JSON.stringify(serviceRequests, null, 2)}`);
 
-    await this.#emailBroadcaster.broadcast();
+    for (const b of this.#broadcasters) {
+      await b.broadcast();
+    }
 
     this.#logger.debug(`Marking the referral as notified`);
     await this.#dao.markServiceRequestAsNotified(serviceRequests.map(x => x.id));
@@ -60,7 +61,8 @@ export class App {
 
   async exit() {
     await this.#scraper.exit();
-    this.#emailBroadcaster.exit();
-    clearInterval(this.#interval);
+    for (const b of this.#broadcasters) {
+      b.exit();
+    }
   }
 }
