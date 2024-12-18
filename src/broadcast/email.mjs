@@ -1,6 +1,7 @@
 import nodemailer from "nodemailer";
 
 import { config } from "../config.mjs";
+import { Logger } from "../logger.mjs";
 
 export class EmailBroadcaster {
   #auth = config.smtp.auth;
@@ -11,6 +12,15 @@ export class EmailBroadcaster {
     auth: { user: this.#auth.email, pass: this.#auth.password },
   });
 
+  #logger;
+
+  /**
+   * @param {Logger} logger
+   */
+  constructor(logger) {
+    this.#logger = logger;
+  }
+
   /**
    * @param {string} subject
    * @param {string} text
@@ -20,6 +30,7 @@ export class EmailBroadcaster {
     const info = [];
 
     for (const e of this.#emails) {
+      this.#logger.debug(`Sending a new referral email to ${e}...`);
       const _info = await this.#transporter.sendMail({
         from: `"AZ Tender Hands" <${this.#auth.email}>`,
         to: e,
@@ -28,6 +39,7 @@ export class EmailBroadcaster {
         html: "<p>New Referral found!</p>",
       });
       info.push(_info);
+      this.#logger.info(`Sent a new referral email to ${e}`);
     }
 
     return info.map(x => x.messageId);

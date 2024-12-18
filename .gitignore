@@ -1,7 +1,5 @@
 .env*
 !.env.example
 node_modules
-cache/*
-!cache/.gitkeep
 data.db
 logs

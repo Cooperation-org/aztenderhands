@@ -8,16 +8,22 @@ export class Logger {
     const { combine, timestamp, printf } = winston.format;
 
     this.#logger = winston.createLogger({
-      level: "debug",
-      format: combine(
-        timestamp(),
-        printf(({ level, message, timestamp }) => {
-          return `${timestamp} [${level}]: ${message}`;
-        }),
-      ),
       transports: [
-        new winston.transports.Console(),
-        new winston.transports.File({ filename: this.#LOGFILE, format: winston.format.json() }),
+        new winston.transports.Console({
+          format: combine(
+            timestamp(),
+            printf(({ level, message, timestamp }) => {
+              return `${timestamp} [${level}]: ${message}`;
+            }),
+          ),
+
+          level: "debug",
+        }),
+        new winston.transports.File({
+          level: "info",
+          filename: this.#LOGFILE,
+          format: combine(timestamp(), winston.format.json()),
+        }),
       ],
     });
   }

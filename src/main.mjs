@@ -8,9 +8,9 @@ async function init() {
   const logger = new Logger();
   const dao = new Dao();
   const scraper = new RovicareScraper(dao, logger);
-  const emailBroadcaster = new EmailBroadcaster();
+  const emailBroadcaster = new EmailBroadcaster(logger);
 
-  const app = new App(scraper, emailBroadcaster, logger);
+  const app = new App(scraper, emailBroadcaster, dao, logger);
   await app.init();
 
   try {

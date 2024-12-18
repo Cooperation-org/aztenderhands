@@ -172,3 +172,14 @@ export type ServiceRequestDto = {
   IsPatientTracked: boolean;
   UpdateReferralResponse: boolean;
 };
+
+export type ServiceRequestResponseBody = {
+  Data: ServiceRequestDto[];
+  DataLength: number;
+  Status: number;
+  Message: string | null;
+  Warning: string | null;
+  Error: string | null;
+  TotalRecords: number;
+  FhirResponse: unknown | null;
+};

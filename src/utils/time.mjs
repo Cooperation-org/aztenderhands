@@ -1,3 +1,11 @@
+/**
+ * @param {Date} date
+ * @returns {Date}
+ */
+export function addHour(date) {
+  return date.setHours(date.getHours() + 1);
+}
+
 export function getTimestamp() {
   const now = new Date();
   const year = now.getFullYear().toString().slice(-2);
