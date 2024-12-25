@@ -30,7 +30,7 @@ export class SMSBroadcaster {
         this.#phoneNumbers.map(async pn => {
           try {
             await this.#twilioClient.messages.create({
-              body: "New referral",
+              body: "Banner referral is posted to Rovicare",
               from: config.twilio.fromNumber,
               to: pn,
             });
