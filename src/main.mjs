@@ -10,16 +10,14 @@ async function init() {
   const logger = new Logger();
   const dao = new Dao();
   const scraper = new RovicareScraper(dao, logger);
-  const emailBroadcaster = new EmailBroadcaster(logger);
-  const smsBroadcaster = new SMSBroadcaster(logger);
 
   const broadcasters = [];
 
   if (config.broadcastEmails.length) {
-    broadcasters.push(emailBroadcaster);
+    broadcasters.push(new EmailBroadcaster(logger));
   }
   if (config.broadcastPhoneNumbers.length) {
-    broadcasters.push(smsBroadcaster);
+    broadcasters.push(new SMSBroadcaster(logger));
   }
 
   const app = new App(scraper, broadcasters, dao, logger);
