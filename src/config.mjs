@@ -27,6 +27,8 @@ const ConfigZ = z.object({
       fromNumber: z.string().min(3),
     })
     .optional(),
+
+  firefoxBinaryPath: z.string().optional(),
 });
 
 const emails = parseArray("EMAILS_TO_NOTIFY");
@@ -55,6 +57,8 @@ const config = ConfigZ.parse({
         fromNumber: process.env.TWILIO_FROM_NUMBER,
       }
     : undefined,
+
+  firefoxBinaryPath: process.env.FIREFOX_BINARY_PATH,
 });
 
 export { config };

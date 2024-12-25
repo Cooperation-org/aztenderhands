@@ -10,6 +10,7 @@ import {
 import { Dao } from "./storage/dao.mjs";
 import winston from "winston";
 import { fetchWithRetry } from "./utils/fetch.mjs";
+import { config } from "./config.mjs";
 
 /**
  * @typedef {import("./types/tokens").Tokens} Tokens
@@ -51,6 +52,9 @@ export class RovicareScraper {
     this.#logger.debug("Initlizing the driver");
     if (this.#driver) return;
     const opts = new firefox.Options();
+    if (config.firefoxBinaryPath) {
+      opts.setBinary(config.firefoxBinaryPath);
+    }
     opts.addArguments("-headless");
     this.#driver = await new Builder().forBrowser(this.#BROWSER).setFirefoxOptions(opts).build();
   }
