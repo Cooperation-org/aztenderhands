@@ -5,9 +5,10 @@ import { sleep } from "./utils/promise.mjs";
 import winston from "winston";
 import { Dao } from "./storage/dao.mjs";
 import { SMSBroadcaster } from "./broadcast/sms.mjs";
+import { config } from "./config.mjs";
 
 export class App {
-  #INTERVAL_DURATION = 60 * 1000;
+  #INTERVAL_DURATION = config.intervalDuration;
 
   #scraper;
   #broadcasters;
@@ -47,7 +48,7 @@ export class App {
       return;
     }
 
-    this.#logger.info(`======= NEW REFERRALS =======`);
+    this.#logger.info(`------- NEW REFERRALS -------`);
 
     this.#logger.debug(`The new service requests: ${JSON.stringify(serviceRequests, null, 2)}`);
 
