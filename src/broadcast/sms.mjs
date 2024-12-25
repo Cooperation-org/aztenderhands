@@ -13,7 +13,6 @@ export class SMSBroadcaster {
   constructor(logger) {
     this.#logger = logger;
 
-    // Initialize Twilio client
     try {
       this.#twilioClient = twilio(config.twilio.accountSid, config.twilio.authToken);
     } catch (error) {
@@ -23,23 +22,21 @@ export class SMSBroadcaster {
   }
 
   /**
-   * Broadcasts an SMS message to all configured phone numbers
    * @returns {Promise<void>}
    */
   async broadcast() {
     try {
-      // Send SMS to each phone number
       await Promise.all(
         this.#phoneNumbers.map(async pn => {
           try {
             await this.#twilioClient.messages.create({
               body: "New referral",
-              from: config.twilio.fromNumber, // Your Twilio phone number
+              from: config.twilio.fromNumber,
               to: pn,
             });
             this.#logger.info(`SMS sent successfully to ${pn}`);
           } catch (sendError) {
-            this.#logger.error(`Failed to send SMS to ${pn}`, sendError);
+            this.#logger.error(`Failed to send SMS to ${pn} ${sendError}`);
           }
         }),
       );
