@@ -30,8 +30,8 @@ export class EmailBroadcaster {
         from: `"AZ Tender Hands" <${this.#auth.email}>`,
         to: e,
         subject: "New Referral",
-        text: "New Referral found!",
-        html: "<p>New Referral found!</p>",
+        text: "Banner referral is posted to Rovicare",
+        html: "<p>Banner referral is posted to Rovicare</p>",
       });
       info.push(_info);
       this.#logger.info(`Sent a new referral email to ${e}`);
