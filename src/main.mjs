@@ -20,6 +20,19 @@ async function init() {
     broadcasters.push(new SMSBroadcaster(logger));
   }
 
+  logger.debug(
+    `Emails and phone numbers to notify: ${JSON.stringify(
+      {
+        config: {
+          emails: config.broadcastEmails,
+          phoneNumbers: config.broadcastPhoneNumbers,
+        },
+      },
+      null,
+      2,
+    )}`,
+  );
+
   const app = new App(scraper, broadcasters, dao, logger);
   await app.init();
 
