@@ -39,70 +39,45 @@
  *   maxDelay: 10000
  * });
  */
-export async function fetchWithRetry(url, options = {}, retryConfig = {}) {
-  const {
-    maxRetries = 3,
-    initialDelay = 1000,
-    maxDelay = 5000,
-    backoffFactor = 2,
-    timeout = 5000,
-    retryOnStatusCodes = [408, 429, 500, 502, 503, 504],
-    retryOnErrors = ["ETIMEDOUT", "ECONNRESET", "ECONNREFUSED", "EPIPE"],
-  } = retryConfig;
+import { config } from "../config.mjs";
 
-  // Add abort controller for timeout
-  const controller = new AbortController();
-  const timeoutId = setTimeout(() => controller.abort(), timeout);
-
+export async function fetchWithRetry(url, options, maxRetries = 3) {
   let lastError;
-  let delay = initialDelay;
-
-  for (let attempt = 0; attempt <= maxRetries; attempt++) {
+  for (let attempt = 1; attempt <= maxRetries; attempt++) {
     try {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+
       const response = await fetch(url, {
         ...options,
         signal: controller.signal,
       });
 
-      // Clear timeout if request succeeds
       clearTimeout(timeoutId);
 
-      // Check if response status is in retryOnStatusCodes
-      if (retryOnStatusCodes.includes(response.status)) {
-        throw new Error(`HTTP status ${response.status}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
 
       return response;
     } catch (error) {
-      // Clear timeout if request fails
-      clearTimeout(timeoutId);
-
       lastError = error;
-      const errorCode = error.cause?.code || error.code;
 
-      // Log detailed error information
-      console.error(`Attempt ${attempt + 1} failed:`, {
+      // Log the specific error
+      console.error(`Attempt ${attempt} failed:`, {
         message: error.message,
-        code: errorCode,
+        code: error.code,
         cause: error.cause,
       });
 
-      // If this was the last attempt, throw the error
-      if (attempt === maxRetries) {
-        throw new Error(`Failed after ${maxRetries} retries. Last error: ${error.message}`);
+      // If it's an abort error, wait longer before retrying
+      if (error.name === "AbortError" || error.code === 20) {
+        await new Promise(resolve => setTimeout(resolve, 5000 * attempt)); // Exponential backoff
+      } else {
+        await new Promise(resolve => setTimeout(resolve, 2000 * attempt));
       }
-
-      // Check if error should trigger a retry
-      const shouldRetry = retryOnErrors.includes(errorCode);
-      if (!shouldRetry) {
-        throw error;
-      }
-
-      // Calculate next delay with exponential backoff
-      delay = Math.min(delay * backoffFactor, maxDelay);
-
-      console.log(`Retrying in ${delay}ms... (Attempt ${attempt + 1} of ${maxRetries})`);
-      await new Promise(resolve => setTimeout(resolve, delay));
     }
   }
+
+  throw new Error(`Failed after ${maxRetries} attempts. Last error: ${lastError.message}`);
 }

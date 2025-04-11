@@ -166,43 +166,58 @@ export class RovicareScraper {
       await d.sleep(5000);
 
       this.#logger.debug("Waiting for referral page");
-      try {
-        // Try multiple URL patterns
-        const urlPatterns = [
-          new RegExp(REFERRAL_INCOMING_ENDPOINT),
-          new RegExp("app.rovicare.com"),
-          new RegExp("rovicare.com"),
-        ];
+      let tokens = null;
+      let maxAttempts = 3;
+      let attempt = 0;
 
-        for (const pattern of urlPatterns) {
-          try {
-            await d.wait(until.urlMatches(pattern), this.#TIMEOUT);
-            this.#logger.debug(`Found matching URL pattern: ${pattern}`);
-            break;
-          } catch (e) {
-            this.#logger.debug(`URL pattern ${pattern} not matched, trying next...`);
-          }
-        }
-      } catch (error) {
-        this.#logger.error("Failed to reach referral page:", error);
-        // Take a screenshot for debugging
+      while (attempt < maxAttempts && !tokens) {
         try {
-          const screenshot = await d.takeScreenshot();
-          this.#logger.debug("Current page screenshot saved");
-          // You can save the screenshot to a file if needed
-        } catch (e) {
-          this.#logger.error("Failed to take screenshot:", e);
+          // Try multiple URL patterns
+          const urlPatterns = [
+            new RegExp(REFERRAL_INCOMING_ENDPOINT),
+            new RegExp("app.rovicare.com"),
+            new RegExp("rovicare.com"),
+          ];
+
+          for (const pattern of urlPatterns) {
+            try {
+              await d.wait(until.urlMatches(pattern), this.#TIMEOUT);
+              this.#logger.debug(`Found matching URL pattern: ${pattern}`);
+
+              // Extract tokens
+              tokens = await d.executeScript(() => {
+                const refresh = window.sessionStorage.getItem("refreshToken");
+                const access = window.sessionStorage.getItem("accessToken");
+                const now = new Date();
+                return { access, refresh, accessExpiresAt: now.setHours(now.getHours() + 1) };
+              });
+
+              if (tokens && tokens.access) {
+                this.#logger.debug("Successfully extracted tokens");
+                break;
+              }
+            } catch (e) {
+              this.#logger.debug(`URL pattern ${pattern} not matched, trying next...`);
+            }
+          }
+
+          if (tokens && tokens.access) {
+            break;
+          }
+
+          attempt++;
+          this.#logger.debug(`Token extraction attempt ${attempt} failed, retrying...`);
+          await d.sleep(2000); // Wait before retrying
+        } catch (error) {
+          this.#logger.error(`Error during token extraction attempt ${attempt}:`, error);
+          attempt++;
+          await d.sleep(2000);
         }
-        throw error;
       }
 
-      this.#logger.debug("Extracting tokens from session storage");
-      const tokens = await this.#driver.executeScript(() => {
-        const refresh = window.sessionStorage.getItem("refreshToken");
-        const access = window.sessionStorage.getItem("accessToken");
-        const now = new Date();
-        return { access, refresh, accessExpiresAt: now.setHours(now.getHours() + 1) };
-      });
+      if (!tokens || !tokens.access) {
+        throw new Error("Failed to extract tokens after multiple attempts");
+      }
 
       this.#logger.debug("Storing new tokens");
       const newTokens = await this.#dao.createToken(tokens);
