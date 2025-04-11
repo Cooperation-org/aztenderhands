@@ -49,14 +49,28 @@ export class RovicareScraper {
   }
 
   async #initDriver() {
-    this.#logger.debug("Initlizing the driver");
-    if (this.#driver) return;
-    const opts = new firefox.Options();
-    if (config.firefoxBinaryPath) {
-      opts.setBinary(config.firefoxBinaryPath);
+    this.#logger.debug("Initializing the driver");
+    if (this.#driver) {
+      this.#logger.debug("Driver already initialized");
+      return;
     }
-    opts.addArguments("-headless");
-    this.#driver = await new Builder().forBrowser(this.#BROWSER).setFirefoxOptions(opts).build();
+
+    try {
+      const opts = new firefox.Options();
+      if (config.firefoxBinaryPath) {
+        this.#logger.debug(`Setting Firefox binary path to: ${config.firefoxBinaryPath}`);
+        opts.setBinary(config.firefoxBinaryPath);
+      }
+      opts.addArguments("-headless");
+
+      this.#logger.debug("Building WebDriver instance");
+      this.#driver = await new Builder().forBrowser(this.#BROWSER).setFirefoxOptions(opts).build();
+
+      this.#logger.debug("WebDriver initialized successfully");
+    } catch (error) {
+      this.#logger.error("Failed to initialize WebDriver:", error);
+      throw error;
+    }
   }
 
   /**
@@ -98,38 +112,151 @@ export class RovicareScraper {
    * @returns {Promise<Tokens>}
    */
   async #getTokens() {
-    const eTokens = await this.#dao.getAvailableTokens();
-    if (eTokens) {
-      this.#logger.debug(`Using already existing token with id: ${eTokens.id}`);
-      return eTokens;
-    }
-
     try {
+      const eTokens = await this.#dao.getAvailableTokens();
+      if (eTokens) {
+        this.#logger.debug(`Using already existing token with id: ${eTokens.id}`);
+        return eTokens;
+      }
+
       this.#logger.info("Fetching new tokens...");
       await this.#initDriver();
 
       const d = this.#driver;
-      await d.get(APP_ENDPOINT);
-      await d.wait(until.urlMatches(new RegExp(SIGNIN_ENDPOINT)), this.#TIMEOUT);
+      this.#logger.debug("Navigating to Rovicare app endpoint");
 
-      await d.wait(until.elementLocated(By.id(this.#identifiers.emailFieldId)), this.#TIMEOUT);
+      try {
+        await d.get(APP_ENDPOINT);
+      } catch (error) {
+        if (error.message.includes("dnsNotFound")) {
+          this.#logger.error(
+            `DNS Error: Unable to resolve ${APP_ENDPOINT}. Please check your network connection and DNS settings.`,
+          );
+          throw new Error(
+            `DNS Error: Unable to resolve ${APP_ENDPOINT}. Please check your network connection and DNS settings.`,
+          );
+        }
+        throw error;
+      }
 
-      await d.findElement(By.id(this.#identifiers.emailFieldId)).sendKeys(process.env.SIGNIN_EMAIL);
-      await d.findElement(By.id(this.#identifiers.passwordFieldId)).sendKeys(process.env.SIGNIN_PASSWORD);
+      this.#logger.debug("Waiting for sign-in page");
+      try {
+        await d.wait(until.urlMatches(new RegExp(SIGNIN_ENDPOINT)), this.#TIMEOUT);
+      } catch (error) {
+        this.#logger.error("Failed to reach sign-in page:", error);
+        throw error;
+      }
 
-      await d.findElement(By.id(this.#identifiers.submitButtonId)).sendKeys(Key.RETURN);
+      // Add a small delay to ensure page is fully loaded
+      await d.sleep(2000);
 
-      await d.wait(until.urlMatches(new RegExp(REFERRAL_INCOMING_ENDPOINT)));
+      this.#logger.debug("Filling login form");
+      try {
+        await d.wait(until.elementLocated(By.id(this.#identifiers.emailFieldId)), this.#TIMEOUT);
+        await d.findElement(By.id(this.#identifiers.emailFieldId)).clear();
+        await d.findElement(By.id(this.#identifiers.emailFieldId)).sendKeys(process.env.SIGNIN_EMAIL);
 
-      const tokens = await this.#driver.executeScript(() => {
-        const refresh = window.sessionStorage.getItem("refreshToken");
-        const access = window.sessionStorage.getItem("accessToken");
-        const now = new Date();
-        return { access, refresh, accessExpiresAt: now.setHours(now.getHours() + 1) };
-      });
+        await d.wait(until.elementLocated(By.id(this.#identifiers.passwordFieldId)), this.#TIMEOUT);
+        await d.findElement(By.id(this.#identifiers.passwordFieldId)).clear();
+        await d.findElement(By.id(this.#identifiers.passwordFieldId)).sendKeys(process.env.SIGNIN_PASSWORD);
+      } catch (error) {
+        this.#logger.error("Failed to fill login form:", error);
+        throw error;
+      }
+
+      // Add a small delay before submitting
+      await d.sleep(1000);
+
+      this.#logger.debug("Submitting login form");
+      try {
+        await d.findElement(By.id(this.#identifiers.submitButtonId)).click();
+      } catch (error) {
+        this.#logger.error("Failed to submit login form:", error);
+        throw error;
+      }
+
+      // Wait for any redirects or security checks
+      await d.sleep(10000);
+
+      this.#logger.debug("Waiting for referral page");
+      let tokens = null;
+      let maxAttempts = 5;
+      let attempt = 0;
+
+      while (attempt < maxAttempts && !tokens) {
+        try {
+          // Try multiple URL patterns
+          const urlPatterns = [
+            new RegExp(REFERRAL_INCOMING_ENDPOINT),
+            new RegExp("app.rovicare.com"),
+            new RegExp("rovicare.com"),
+          ];
+
+          for (const pattern of urlPatterns) {
+            try {
+              await d.wait(until.urlMatches(pattern), this.#TIMEOUT);
+              this.#logger.debug(`Found matching URL pattern: ${pattern}`);
+
+              // Extract tokens from both sessionStorage and localStorage
+              tokens = await d.executeScript(() => {
+                const sessionStorage = window.sessionStorage;
+                const localStorage = window.localStorage;
+
+                // Try sessionStorage first
+                let access = sessionStorage.getItem("accessToken");
+                let refresh = sessionStorage.getItem("refreshToken");
+
+                // If not found in sessionStorage, try localStorage
+                if (!access) {
+                  access = localStorage.getItem("accessToken");
+                  refresh = localStorage.getItem("refreshToken");
+                }
+
+                if (access) {
+                  const now = new Date();
+                  return {
+                    access,
+                    refresh,
+                    accessExpiresAt: now.setHours(now.getHours() + 1),
+                  };
+                }
+                return null;
+              });
+
+              if (tokens && tokens.access) {
+                this.#logger.debug("Successfully extracted tokens");
+                break;
+              }
+            } catch (e) {
+              this.#logger.debug(`URL pattern ${pattern} not matched, trying next...`);
+            }
+          }
+
+          if (tokens && tokens.access) {
+            break;
+          }
+
+          attempt++;
+          this.#logger.debug(`Token extraction attempt ${attempt} failed, retrying...`);
+          await d.sleep(5000);
+        } catch (error) {
+          this.#logger.error(`Error during token extraction attempt ${attempt}:`, error);
+          attempt++;
+          await d.sleep(5000);
+        }
+      }
+
+      if (!tokens || !tokens.access) {
+        throw new Error("Failed to extract tokens after multiple attempts");
+      }
+
+      this.#logger.debug("Storing new tokens");
       const newTokens = await this.#dao.createToken(tokens);
-      this.#logger.debug(`Stored new token`);
+      this.#logger.debug(`Stored new token with id: ${newTokens.id}`);
       return newTokens;
+    } catch (error) {
+      this.#logger.error("Error during token fetch:", error);
+      throw error;
     } finally {
       await this.#exitDriver();
     }
