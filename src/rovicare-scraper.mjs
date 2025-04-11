@@ -124,7 +124,20 @@ export class RovicareScraper {
 
       const d = this.#driver;
       this.#logger.debug("Navigating to Rovicare app endpoint");
-      await d.get(APP_ENDPOINT);
+
+      try {
+        await d.get(APP_ENDPOINT);
+      } catch (error) {
+        if (error.message.includes("dnsNotFound")) {
+          this.#logger.error(
+            `DNS Error: Unable to resolve ${APP_ENDPOINT}. Please check your network connection and DNS settings.`,
+          );
+          throw new Error(
+            `DNS Error: Unable to resolve ${APP_ENDPOINT}. Please check your network connection and DNS settings.`,
+          );
+        }
+        throw error;
+      }
 
       this.#logger.debug("Waiting for sign-in page");
       try {
