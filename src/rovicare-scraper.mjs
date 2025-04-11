@@ -163,11 +163,11 @@ export class RovicareScraper {
       }
 
       // Wait for any redirects or security checks
-      await d.sleep(5000);
+      await d.sleep(10000);
 
       this.#logger.debug("Waiting for referral page");
       let tokens = null;
-      let maxAttempts = 3;
+      let maxAttempts = 5;
       let attempt = 0;
 
       while (attempt < maxAttempts && !tokens) {
@@ -184,12 +184,30 @@ export class RovicareScraper {
               await d.wait(until.urlMatches(pattern), this.#TIMEOUT);
               this.#logger.debug(`Found matching URL pattern: ${pattern}`);
 
-              // Extract tokens
+              // Extract tokens from both sessionStorage and localStorage
               tokens = await d.executeScript(() => {
-                const refresh = window.sessionStorage.getItem("refreshToken");
-                const access = window.sessionStorage.getItem("accessToken");
-                const now = new Date();
-                return { access, refresh, accessExpiresAt: now.setHours(now.getHours() + 1) };
+                const sessionStorage = window.sessionStorage;
+                const localStorage = window.localStorage;
+
+                // Try sessionStorage first
+                let access = sessionStorage.getItem("accessToken");
+                let refresh = sessionStorage.getItem("refreshToken");
+
+                // If not found in sessionStorage, try localStorage
+                if (!access) {
+                  access = localStorage.getItem("accessToken");
+                  refresh = localStorage.getItem("refreshToken");
+                }
+
+                if (access) {
+                  const now = new Date();
+                  return {
+                    access,
+                    refresh,
+                    accessExpiresAt: now.setHours(now.getHours() + 1),
+                  };
+                }
+                return null;
               });
 
               if (tokens && tokens.access) {
@@ -207,11 +225,11 @@ export class RovicareScraper {
 
           attempt++;
           this.#logger.debug(`Token extraction attempt ${attempt} failed, retrying...`);
-          await d.sleep(2000); // Wait before retrying
+          await d.sleep(5000);
         } catch (error) {
           this.#logger.error(`Error during token extraction attempt ${attempt}:`, error);
           attempt++;
-          await d.sleep(2000);
+          await d.sleep(5000);
         }
       }
 

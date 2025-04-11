@@ -10,3 +10,9 @@ To start the script
 pnpm i
 pnpm start
 ```
+
+test the notification
+
+```bash
+pnpm test:notifications
+```
